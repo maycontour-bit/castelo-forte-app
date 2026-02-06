@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import replicate
+import os
 
 # --- CONFIGURAÇÃO DA PÁGINA (DESIGN PREMIUM) ---
 st.set_page_config(
@@ -11,6 +13,23 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- CONFIGURAÇÃO DE SEGURANÇA (API KEY) ---
+# Tenta pegar dos secrets ou pede na sidebar (para evitar hardcode no GitHub)
+replicate_api = st.secrets.get("REPLICATE_API_TOKEN")
+if not replicate_api:
+    # Verifica variável de ambiente (caso local)
+    replicate_api = os.environ.get("REPLICATE_API_TOKEN")
+
+if not replicate_api:
+    # Se não tiver, pede na sidebar
+    with st.sidebar:
+        st.markdown("---")
+        replicate_api = st.text_input("🔑 API Replicate (Temp)", type="password", help="Cole sua chave aqui para ativar a IA.")
+        if replicate_api:
+            os.environ["REPLICATE_API_TOKEN"] = replicate_api
+            st.success("IA Ativada!")
+
 
 # --- CSS PERSONALIZADO (AZUL MARINHO & DOURADO) ---
 st.markdown("""
@@ -60,6 +79,21 @@ st.markdown("""
     .stDataFrame {
         border: 1px solid #333;
         border-radius: 5px;
+    }
+    
+    /* Inputs */
+    .stTextInput>div>div>input {
+        background-color: #1e293b;
+        color: #fff;
+        border: 1px solid #333;
+    }
+    .stNumberInput>div>div>input {
+        background-color: #1e293b;
+        color: #fff;
+    }
+    .stSelectbox>div>div>div {
+        background-color: #1e293b;
+        color: #fff;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -132,7 +166,7 @@ if menu == "🏰 Visão Geral":
     # 3. Conexão Bancária (Pluggy)
     st.info("🔗 **Open Finance:** Conecte suas contas do Nubank e Itaú para sincronização automática.")
     if st.button("Conectar Nova Conta (+)", type="primary"):
-        st.toast("Redirecionando para widget Pluggy...", icon="🏦")
+        st.toast("Aguardando chave da Pluggy (Segunda-feira)...", icon="⏳")
 
 # --- MÓDULO 2: LANÇAMENTOS (EXTRATO) ---
 elif menu == "💳 Lançamentos":
@@ -174,15 +208,16 @@ elif menu == "💳 Lançamentos":
             c2.date_input("Data")
             st.form_submit_button("Salvar Transação")
 
-# --- MÓDULO 3: ORÁCULO VFP (GUARDIÃO) ---
+# --- MÓDULO 3: ORÁCULO VFP (GUARDIÃO COM IA) ---
 elif menu == "🔮 Oráculo VFP":
-    st.title("Oráculo VFP 2.0")
-    st.markdown("O **Guardião do Castelo** analisa suas decisões antes de você gastar.")
+    st.title("Oráculo VFP 2.0 (IA)")
+    st.markdown("O **Guardião do Castelo** usa Inteligência Artificial para analisar suas decisões.")
     
     col1, col2 = st.columns([1, 1])
     
     with col1:
         st.subheader("Simulador de Compra")
+        descricao = st.text_input("O que você quer comprar?", placeholder="Ex: iPhone 16 Pro Max")
         val_compra = st.number_input("Valor da Compra (R$)", 0.0, step=100.0)
         categoria = st.selectbox("Categoria", ["Essencial", "Estilo de Vida", "Supérfluo/Desejo"])
         parcelas = st.slider("Parcelas", 1, 12, 1)
@@ -190,21 +225,62 @@ elif menu == "🔮 Oráculo VFP":
         renda_mensal = 18200.00 # Puxar do banco de dados futuramente
         
         if st.button("Consultar Guardião", type="primary"):
-            impacto = (val_compra / renda_mensal) * 100
-            st.markdown("---")
-            
-            if impacto > 30:
-                st.error(f"⛔ **BLOQUEADO!** Essa compra compromete {impacto:.1f}% da sua renda mensal. Risco alto de endividamento.")
-            elif categoria == "Supérfluo/Desejo" and impacto > 10:
-                st.warning(f"⚠️ **ATENÇÃO:** Impacto de {impacto:.1f}%. Aguarde 72h antes de decidir.")
-            else:
-                st.success(f"✅ **APROVADO:** Impacto de {impacto:.1f}%. Dentro da margem de segurança.")
-                st.balloons()
-                
+            with st.spinner("O Guardião está consultando a sabedoria milenar..."):
+                try:
+                    # Lógica Híbrida: Cálculo + IA
+                    impacto = (val_compra / renda_mensal) * 100
+                    
+                    # Prompt para o Modelo Llama 3
+                    prompt = f"""
+                    Você é o 'Guardião VFP' (Verdade, Fidelidade, Propósito), um consultor financeiro sábio, cristão e estrategista.
+                    O usuário quer comprar: {descricao}
+                    Valor: R$ {val_compra:.2f}
+                    Renda Mensal do Usuário: R$ {renda_mensal:.2f}
+                    Impacto na Renda: {impacto:.1f}%
+                    Categoria: {categoria}
+                    Parcelas: {parcelas}x
+                    
+                    Diretrizes:
+                    1. Se o impacto for > 30%, seja firme e desencoraje.
+                    2. Use a regra dos 72h para desejos supérfluos.
+                    3. Cite um princípio bíblico curto se apropriado (Ex: Provérbios, Eclesiastes) sobre sabedoria/gastos.
+                    4. Seja direto (máximo 3 frases). Dê um veredito: APROVADO, CUIDADO ou REPROVADO.
+                    5. Fale como um mentor experiente.
+                    """
+                    
+                    output = replicate.run(
+                        "meta/llama-3-8b-instruct",
+                        input={"prompt": prompt, "max_tokens": 150}
+                    )
+                    
+                    resultado_ia = "".join(output)
+                    
+                    st.markdown("### 📜 Veredito do Guardião")
+                    st.write(resultado_ia)
+                    
+                    st.markdown("---")
+                    st.caption(f"Impacto Financeiro Real: {impacto:.1f}% da sua renda.")
+                    
+                    if impacto > 30:
+                        st.progress(impacto/100, text="⚠️ Risco Crítico de Orçamento")
+                    else:
+                        st.progress(impacto/100, text="✅ Margem Segura")
+                        
+                except Exception as e:
+                    st.error(f"O Guardião está em silêncio (Erro na conexão): {e}")
+                    st.info("Verifique a chave da API Replicate.")
+
     with col2:
-        st.subheader("Princípios Ativos")
-        st.info("📖 **Provérbios 21:20**\n\n'Tesouro desejável e azeite há na casa do sábio, mas o homem insensato os desperdiça.'")
-        st.warning("🛡️ **Regra dos 72h:**\n\nPara compras não essenciais acima de R$ 500, espere 3 dias.")
+        st.subheader("Princípios do Manual")
+        st.markdown("""
+        > **VIPE:**
+        > - **V**erdade: Encare seus números.
+        > - **I**ntencionalidade: Todo gasto deve ter um propósito.
+        > - **P**rincípios: Honre seus compromissos.
+        > - **E**ternidade: Construa legado, não apenas patrimônio.
+        """)
+        
+        st.warning("🛡️ **Lembrete:** Dívida não é pecado, mas é escravidão. Evite parcelamentos longos para bens de consumo.")
 
 # --- MÓDULO 4: PLANOS & ASSINATURA ---
 elif menu == "💎 Planos & Assinatura":
@@ -223,7 +299,7 @@ elif menu == "💎 Planos & Assinatura":
             <ul style='list-style: none; padding: 0;'>
                 <li>✅ Conexão Bancária (Pluggy)</li>
                 <li>✅ Dashboard Premium</li>
-                <li>✅ Oráculo VFP Automático</li>
+                <li>✅ Oráculo VFP (Com IA)</li>
             </ul>
             <button style='width: 100%; background-color: #444; color: #fff; border: none; padding: 10px; border-radius: 5px; cursor: not-allowed;'>Plano Atual</button>
         </div>
