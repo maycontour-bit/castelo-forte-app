@@ -100,8 +100,9 @@ st.markdown("""
 
 # --- SIDEBAR (NAVEGAÇÃO) ---
 with st.sidebar:
-    st.image("https://img.icons8.com/color/96/castle.png", width=80)
-    st.markdown("<h2 style='text-align: center; color: #D4AF37;'>CASTELO FORTE</h2>", unsafe_allow_html=True)
+    # Logo do Castelo Forte
+    st.image("logo.jpg", width=150)
+    # st.markdown("<h2 style='text-align: center; color: #D4AF37;'>CASTELO FORTE</h2>", unsafe_allow_html=True)
     st.markdown("---")
     
     menu = st.radio(
