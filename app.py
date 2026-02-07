@@ -15,14 +15,11 @@ st.set_page_config(
 )
 
 # --- CONFIGURAÇÃO DE SEGURANÇA (API KEY) ---
-# Tenta pegar dos secrets ou pede na sidebar (para evitar hardcode no GitHub)
 replicate_api = st.secrets.get("REPLICATE_API_TOKEN")
 if not replicate_api:
-    # Verifica variável de ambiente (caso local)
     replicate_api = os.environ.get("REPLICATE_API_TOKEN")
 
 if not replicate_api:
-    # Se não tiver, pede na sidebar
     with st.sidebar:
         st.markdown("---")
         replicate_api = st.text_input("🔑 API Replicate (Temp)", type="password", help="Cole sua chave aqui para ativar a IA.")
@@ -82,32 +79,50 @@ st.markdown("""
     }
     
     /* Inputs */
-    .stTextInput>div>div>input {
+    .stTextInput>div>div>input, .stNumberInput>div>div>input {
         background-color: #1e293b;
         color: #fff;
         border: 1px solid #333;
-    }
-    .stNumberInput>div>div>input {
-        background-color: #1e293b;
-        color: #fff;
     }
     .stSelectbox>div>div>div {
         background-color: #1e293b;
         color: #fff;
     }
+    
+    /* Progress Bar */
+    .stProgress > div > div > div > div {
+        background-color: #D4AF37;
+    }
     </style>
 """, unsafe_allow_html=True)
 
+# --- MOCK DATA (ESTADO INICIAL) ---
+if 'transactions' not in st.session_state:
+    st.session_state.transactions = pd.DataFrame({
+        "Data": [datetime(2026, 2, 6), datetime(2026, 2, 5), datetime(2026, 2, 5), datetime(2026, 2, 4)],
+        "Descrição": ["Supermercado", "Uber", "Salário", "Netflix"],
+        "Categoria": ["Alimentação", "Transporte", "Receita", "Lazer"],
+        "Valor": [-450.00, -24.90, 18200.00, -55.90],
+        "Conta": ["Nubank", "Nubank", "Itaú", "Nubank"],
+        "Status": ["Pago", "Pago", "Recebido", "Pago"]
+    })
+
+if 'budgets' not in st.session_state:
+    st.session_state.budgets = {
+        "Alimentação": 1500.00,
+        "Transporte": 500.00,
+        "Lazer": 400.00,
+        "Moradia": 3000.00
+    }
+
 # --- SIDEBAR (NAVEGAÇÃO) ---
 with st.sidebar:
-    # Logo do Castelo Forte
     st.image("logo.jpg", width=150)
-    # st.markdown("<h2 style='text-align: center; color: #D4AF37;'>CASTELO FORTE</h2>", unsafe_allow_html=True)
     st.markdown("---")
     
     menu = st.radio(
         "Navegação", 
-        ["🏰 Visão Geral", "💳 Lançamentos", "🔮 Oráculo VFP", "💎 Planos & Assinatura"],
+        ["🏰 Visão Geral", "💳 Lançamentos", "📊 Planejamento (Metas)", "🔮 Oráculo VFP", "💎 Planos"],
         index=0
     )
     
@@ -115,101 +130,158 @@ with st.sidebar:
     st.caption("🔒 Conexão Segura (256-bit)")
     st.caption("© 2026 Castelo Forte")
 
-# --- MÓDULO 1: VISÃO GERAL (DASHBOARD MOBILLS-STYLE) ---
+# --- MÓDULO 1: VISÃO GERAL (DASHBOARD) ---
 if menu == "🏰 Visão Geral":
     st.title("Painel de Controle")
     st.markdown("Bem-vindo ao seu QG Financeiro, **Maycon**.")
     
     # 1. Cards Superiores (Resumo)
+    # Cálculo real baseado no Mock
+    df = st.session_state.transactions
+    receitas = df[df['Valor'] > 0]['Valor'].sum()
+    despesas = abs(df[df['Valor'] < 0]['Valor'].sum())
+    saldo = receitas - despesas
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Saldo Atual", "R$ 12.450,00", "+5.2%")
+        st.metric("Saldo Atual", f"R$ {saldo:,.2f}", "+5.2%")
     with col2:
-        st.metric("Receitas (Mês)", "R$ 18.200,00", "+12%")
+        st.metric("Receitas (Mês)", f"R$ {receitas:,.2f}", "+12%")
     with col3:
-        st.metric("Despesas (Mês)", "R$ 5.750,00", "-2%")
+        st.metric("Despesas (Mês)", f"R$ {despesas:,.2f}", "-2%")
     with col4:
         st.metric("Meta Castelo", "12%", "R$ 100k Alvo")
 
     st.markdown("---")
 
-    # 2. Gráficos Principais (Layout Mobills)
+    # 2. Gráficos Principais
     c1, c2 = st.columns([2, 1])
     
     with c1:
-        st.subheader("Fluxo de Caixa (6 Meses)")
-        # Dados Fictícios
+        st.subheader("Fluxo de Caixa (Evolução)")
+        # Simulação de dados mensais
         df_fluxo = pd.DataFrame({
-            "Mês": ["Ago", "Set", "Out", "Nov", "Dez", "Jan"],
-            "Receitas": [15000, 16000, 15500, 18000, 22000, 18200],
-            "Despesas": [12000, 11500, 13000, 14000, 10000, 5750]
+            "Mês": ["Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev"],
+            "Receitas": [15000, 16000, 15500, 18000, 22000, 18200, receitas],
+            "Despesas": [12000, 11500, 13000, 14000, 10000, 5750, despesas],
+            "Saldo": [3000, 4500, 2500, 4000, 12000, 12450, saldo]
         })
         
-        fig_bar = go.Figure(data=[
-            go.Bar(name='Receitas', x=df_fluxo['Mês'], y=df_fluxo['Receitas'], marker_color='#2ecc71'),
-            go.Bar(name='Despesas', x=df_fluxo['Mês'], y=df_fluxo['Despesas'], marker_color='#e74c3c')
-        ])
-        fig_bar.update_layout(barmode='group', bg_color='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#fff')
-        st.plotly_chart(fig_bar, use_container_width=True)
+        fig_line = go.Figure()
+        fig_line.add_trace(go.Scatter(x=df_fluxo['Mês'], y=df_fluxo['Receitas'], name='Receitas', line=dict(color='#2ecc71', width=3)))
+        fig_line.add_trace(go.Scatter(x=df_fluxo['Mês'], y=df_fluxo['Despesas'], name='Despesas', line=dict(color='#e74c3c', width=3)))
+        fig_line.add_trace(go.Bar(x=df_fluxo['Mês'], y=df_fluxo['Saldo'], name='Saldo Líquido', marker_color='#D4AF37', opacity=0.3))
+        
+        fig_line.update_layout(title="Receitas vs Despesas", bg_color='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#fff')
+        st.plotly_chart(fig_line, use_container_width=True)
         
     with c2:
-        st.subheader("Gastos por Categoria")
-        # Dados Fictícios
-        df_pizza = pd.DataFrame({
-            "Categoria": ["Moradia", "Alimentação", "Transporte", "Lazer", "Investimentos"],
-            "Valor": [2500, 1200, 800, 600, 650]
-        })
+        st.subheader("Por Categoria")
+        # Agrupamento real do Mock
+        df_despesas = df[df['Valor'] < 0].copy()
+        df_despesas['Valor'] = df_despesas['Valor'].abs()
+        df_pizza = df_despesas.groupby("Categoria")['Valor'].sum().reset_index()
         
-        fig_pie = px.pie(df_pizza, values='Valor', names='Categoria', color_discrete_sequence=px.colors.sequential.RdBu)
+        fig_pie = px.pie(df_pizza, values='Valor', names='Categoria', color_discrete_sequence=px.colors.sequential.RdBu, hole=0.4)
         fig_pie.update_layout(bg_color='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#fff')
         st.plotly_chart(fig_pie, use_container_width=True)
-
-    # 3. Conexão Bancária (Pluggy)
-    st.info("🔗 **Open Finance:** Conecte suas contas do Nubank e Itaú para sincronização automática.")
-    if st.button("Conectar Nova Conta (+)", type="primary"):
-        st.toast("Aguardando chave da Pluggy (Segunda-feira)...", icon="⏳")
 
 # --- MÓDULO 2: LANÇAMENTOS (EXTRATO) ---
 elif menu == "💳 Lançamentos":
     st.title("Extrato Inteligente")
     
-    c_filter1, c_filter2 = st.columns(2)
+    # Filtros
+    c_filter1, c_filter2, c_filter3 = st.columns(3)
     with c_filter1:
         st.date_input("Período", datetime.today())
     with c_filter2:
-        st.selectbox("Conta", ["Todas", "Nubank", "Itaú", "Dinheiro"])
+        conta_sel = st.selectbox("Conta", ["Todas", "Nubank", "Itaú"])
+    with c_filter3:
+        cat_sel = st.selectbox("Categoria", ["Todas"] + list(st.session_state.budgets.keys()))
     
-    # Tabela de Lançamentos
-    data_lanc = {
-        "Data": ["06/02", "05/02", "05/02", "04/02"],
-        "Descrição": ["Supermercado", "Uber", "Salário", "Netflix"],
-        "Categoria": ["Alimentação", "Transporte", "Receita", "Lazer"],
-        "Valor": [-450.00, -24.90, 18200.00, -55.90],
-        "Status": ["✅ Pago", "✅ Pago", "✅ Recebido", "✅ Pago"]
-    }
-    df_lanc = pd.DataFrame(data_lanc)
+    # Tabela
+    df_show = st.session_state.transactions
     
-    # Estilizando a tabela
+    # Estilizando
     def color_val(val):
         color = '#e74c3c' if val < 0 else '#2ecc71'
         return f'color: {color}; font-weight: bold;'
     
     st.dataframe(
-        df_lanc.style.applymap(color_val, subset=['Valor']),
+        df_show.style.applymap(color_val, subset=['Valor']),
         use_container_width=True,
-        height=300
+        height=400,
+        column_config={
+            "Data": st.column_config.DatetimeColumn(format="DD/MM/YYYY"),
+            "Valor": st.column_config.NumberColumn(format="R$ %.2f")
+        }
     )
     
-    with st.expander("➕ Novo Lançamento Manual"):
+    # Botão Flutuante (Simulado)
+    with st.expander("➕ Novo Lançamento Manual", expanded=False):
         with st.form("new_transaction"):
             c1, c2 = st.columns(2)
-            c1.text_input("Descrição")
-            c2.number_input("Valor", step=0.01)
-            c1.selectbox("Categoria", ["Alimentação", "Transporte", "Lazer", "Outros"])
-            c2.date_input("Data")
-            st.form_submit_button("Salvar Transação")
+            desc = c1.text_input("Descrição")
+            val = c2.number_input("Valor", step=0.01)
+            cat = c1.selectbox("Categoria", list(st.session_state.budgets.keys()) + ["Receita"])
+            data = c2.date_input("Data")
+            tipo = st.radio("Tipo", ["Despesa", "Receita"], horizontal=True)
+            
+            if st.form_submit_button("Salvar Transação"):
+                valor_final = val if tipo == "Receita" else -val
+                new_row = pd.DataFrame({
+                    "Data": [pd.to_datetime(data)],
+                    "Descrição": [desc],
+                    "Categoria": [cat],
+                    "Valor": [valor_final],
+                    "Conta": ["Manual"],
+                    "Status": ["Pago"]
+                })
+                st.session_state.transactions = pd.concat([new_row, st.session_state.transactions], ignore_index=True)
+                st.toast("Transação salva com sucesso!", icon="✅")
+                st.rerun()
 
-# --- MÓDULO 3: ORÁCULO VFP (GUARDIÃO COM IA) ---
+# --- MÓDULO 3: PLANEJAMENTO (METAS) ---
+elif menu == "📊 Planejamento (Metas)":
+    st.title("Metas de Gastos")
+    st.markdown("Defina limites para suas categorias e acompanhe o progresso.")
+    
+    df = st.session_state.transactions
+    df_gastos = df[df['Valor'] < 0].copy()
+    df_gastos['Valor'] = df_gastos['Valor'].abs()
+    gastos_cat = df_gastos.groupby("Categoria")['Valor'].sum()
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("Progresso do Mês")
+        for cat, limite in st.session_state.budgets.items():
+            gasto_atual = gastos_cat.get(cat, 0.0)
+            pct = min(gasto_atual / limite, 1.0)
+            
+            c_meta1, c_meta2 = st.columns([3, 1])
+            with c_meta1:
+                st.write(f"**{cat}** (R$ {gasto_atual:.2f} / R$ {limite:.2f})")
+                color_bar = "red" if pct > 0.9 else "green"
+                st.progress(pct, text=f"{pct*100:.0f}%")
+            with c_meta2:
+                diff = limite - gasto_atual
+                if diff < 0:
+                    st.error(f"Estourou R$ {abs(diff):.2f}")
+                else:
+                    st.success(f"Resta R$ {diff:.2f}")
+            st.write("")
+            
+    with col2:
+        st.subheader("Definir Metas")
+        cat_edit = st.selectbox("Editar Categoria", list(st.session_state.budgets.keys()))
+        new_limit = st.number_input(f"Novo limite para {cat_edit}", value=float(st.session_state.budgets[cat_edit]))
+        if st.button("Atualizar Meta"):
+            st.session_state.budgets[cat_edit] = new_limit
+            st.toast("Meta atualizada!", icon="🎯")
+            st.rerun()
+
+# --- MÓDULO 4: ORÁCULO VFP ---
 elif menu == "🔮 Oráculo VFP":
     st.title("Oráculo VFP 2.0 (IA)")
     st.markdown("O **Guardião do Castelo** usa Inteligência Artificial para analisar suas decisões.")
@@ -223,119 +295,53 @@ elif menu == "🔮 Oráculo VFP":
         categoria = st.selectbox("Categoria", ["Essencial", "Estilo de Vida", "Supérfluo/Desejo"])
         parcelas = st.slider("Parcelas", 1, 12, 1)
         
-        renda_mensal = 18200.00 # Puxar do banco de dados futuramente
+        renda_mensal = 18200.00 
         
         if st.button("Consultar Guardião", type="primary"):
             with st.spinner("O Guardião está consultando a sabedoria milenar..."):
                 try:
-                    # Lógica Híbrida: Cálculo + IA
                     impacto = (val_compra / renda_mensal) * 100
-                    
-                    # Prompt para o Modelo Llama 3
                     prompt = f"""
-                    Você é o 'Guardião VFP' (Verdade, Fidelidade, Propósito), um consultor financeiro sábio, cristão e estrategista.
-                    O usuário quer comprar: {descricao}
-                    Valor: R$ {val_compra:.2f}
-                    Renda Mensal do Usuário: R$ {renda_mensal:.2f}
-                    Impacto na Renda: {impacto:.1f}%
-                    Categoria: {categoria}
-                    Parcelas: {parcelas}x
+                    Você é o 'Guardião VFP' (Verdade, Fidelidade, Propósito).
+                    Compra: {descricao} | Valor: R$ {val_compra:.2f}
+                    Renda: R$ {renda_mensal:.2f} | Impacto: {impacto:.1f}% | Categoria: {categoria}
                     
                     Diretrizes:
-                    1. Se o impacto for > 30%, seja firme e desencoraje.
-                    2. Use a regra dos 72h para desejos supérfluos.
-                    3. Cite um princípio bíblico curto se apropriado (Ex: Provérbios, Eclesiastes) sobre sabedoria/gastos.
-                    4. Seja direto (máximo 3 frases). Dê um veredito: APROVADO, CUIDADO ou REPROVADO.
-                    5. Fale como um mentor experiente.
+                    1. Impacto > 30% = BLOQUEIO.
+                    2. Supérfluo > 10% = Regra dos 72h.
+                    3. Cite Bíblia se necessário.
+                    4. Veredito: APROVADO, CUIDADO ou REPROVADO.
                     """
                     
                     output = replicate.run(
                         "meta/llama-3-8b-instruct",
                         input={"prompt": prompt, "max_tokens": 150}
                     )
-                    
-                    resultado_ia = "".join(output)
-                    
-                    st.markdown("### 📜 Veredito do Guardião")
-                    st.write(resultado_ia)
-                    
+                    st.markdown("### 📜 Veredito")
+                    st.write("".join(output))
                     st.markdown("---")
-                    st.caption(f"Impacto Financeiro Real: {impacto:.1f}% da sua renda.")
                     
                     if impacto > 30:
-                        st.progress(impacto/100, text="⚠️ Risco Crítico de Orçamento")
+                        st.progress(impacto/100, text="⚠️ Risco Crítico")
                     else:
                         st.progress(impacto/100, text="✅ Margem Segura")
                         
                 except Exception as e:
-                    st.error(f"O Guardião está em silêncio (Erro na conexão): {e}")
-                    st.info("Verifique a chave da API Replicate.")
+                    st.error(f"Erro na IA: {e}")
 
     with col2:
-        st.subheader("Princípios do Manual")
-        st.markdown("""
-        > **VIPE:**
-        > - **V**erdade: Encare seus números.
-        > - **I**ntencionalidade: Todo gasto deve ter um propósito.
-        > - **P**rincípios: Honre seus compromissos.
-        > - **E**ternidade: Construa legado, não apenas patrimônio.
-        """)
-        
-        st.warning("🛡️ **Lembrete:** Dívida não é pecado, mas é escravidão. Evite parcelamentos longos para bens de consumo.")
+        st.subheader("Princípios")
+        st.info("💡 **Dica:** Antes de comprar, pergunte: Eu preciso? Eu posso pagar à vista? Isso me aproxima do meu propósito?")
 
-# --- MÓDULO 4: PLANOS & ASSINATURA ---
-elif menu == "💎 Planos & Assinatura":
-    st.title("Evolua seu Castelo")
-    
-    c1, c2, c3 = st.columns(3)
-    
-    # Plano 1 (Atual)
+# --- MÓDULO 5: PLANOS ---
+elif menu == "💎 Planos":
+    st.title("Assinatura Castelo Forte")
+    c1, c2 = st.columns(2)
     with c1:
-        st.markdown("""
-        <div style='background-color: #1e293b; padding: 20px; border-radius: 10px; border: 2px solid #D4AF37;'>
-            <h3 style='color: #D4AF37; text-align: center;'>👑 App MVP</h3>
-            <h1 style='text-align: center; color: #fff;'>R$ 79,90</h1>
-            <p style='text-align: center; color: #aaa;'>mensal</p>
-            <hr>
-            <ul style='list-style: none; padding: 0;'>
-                <li>✅ Conexão Bancária (Pluggy)</li>
-                <li>✅ Dashboard Premium</li>
-                <li>✅ Oráculo VFP (Com IA)</li>
-            </ul>
-            <button style='width: 100%; background-color: #444; color: #fff; border: none; padding: 10px; border-radius: 5px; cursor: not-allowed;'>Plano Atual</button>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Plano 2 (Standard)
+        st.success("✅ **Plano Atual: App MVP (R$ 79,90)**")
+        st.write("- Acesso total ao Oráculo")
+        st.write("- Gestão de Metas")
     with c2:
-        st.markdown("""
-        <div style='background-color: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #333;'>
-            <h3 style='color: #fff; text-align: center;'>⚔️ Standard</h3>
-            <h1 style='text-align: center; color: #fff;'>R$ 497,00</h1>
-            <p style='text-align: center; color: #aaa;'>mensal</p>
-            <hr>
-            <ul style='list-style: none; padding: 0;'>
-                <li>✅ <b>Tudo do App</b></li>
-                <li>✨ Reunião Mensal c/ Consultor</li>
-                <li>✨ Análise de Investimentos</li>
-            </ul>
-            <button style='width: 100%; background-color: #D4AF37; color: #000; border: none; padding: 10px; border-radius: 5px; font-weight: bold;'>Fazer Upgrade</button>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    # Plano 3 (Legado)
-    with c3:
-        st.markdown("""
-        <div style='background-color: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #333; opacity: 0.7;'>
-            <h3 style='color: #fff; text-align: center;'>🏰 Legado</h3>
-            <h1 style='text-align: center; color: #fff;'>Consultar</h1>
-            <p style='text-align: center; color: #aaa;'>anual</p>
-            <hr>
-            <ul style='list-style: none; padding: 0;'>
-                <li>✅ Planejamento Sucessório</li>
-                <li>✅ Blindagem Patrimonial</li>
-                <li>✅ Gestão Familiar Completa</li>
-            </ul>
-            <button style='width: 100%; background-color: #333; color: #fff; border: none; padding: 10px; border-radius: 5px;'>Falar com Time</button>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("🚀 **Upgrade: Standard (R$ 497,00)**")
+        st.write("- Consultoria Humana")
+        st.button("Fazer Upgrade")
