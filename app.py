@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import replicate
 import os
 
@@ -115,6 +115,19 @@ if 'budgets' not in st.session_state:
         "Moradia": 3000.00
     }
 
+if 'cards' not in st.session_state:
+    st.session_state.cards = [
+        {"nome": "Nubank Roxinho", "limite": 15000.00, "fechamento": 5, "vencimento": 12, "fatura_atual": 4500.20},
+        {"nome": "Itaú Black", "limite": 35000.00, "fechamento": 20, "vencimento": 28, "fatura_atual": 1250.00}
+    ]
+
+if 'goals' not in st.session_state:
+    st.session_state.goals = [
+        {"nome": "Reserva de Emergência", "alvo": 100000.00, "atual": 12450.00, "cor": "#2ecc71"},
+        {"nome": "Viagem Europa", "alvo": 30000.00, "atual": 5000.00, "cor": "#3498db"},
+        {"nome": "Troca de Carro", "alvo": 150000.00, "atual": 0.00, "cor": "#e74c3c"}
+    ]
+
 # --- SIDEBAR (NAVEGAÇÃO) ---
 with st.sidebar:
     st.image("logo.jpg", width=150)
@@ -122,7 +135,7 @@ with st.sidebar:
     
     menu = st.radio(
         "Navegação", 
-        ["🏰 Visão Geral", "💳 Lançamentos", "📊 Planejamento (Metas)", "🔮 Oráculo VFP", "💎 Planos"],
+        ["🏰 Visão Geral", "💳 Lançamentos", "💳 Cartões de Crédito", "🎯 Objetivos (Reservas)", "📊 Planejamento (Metas)", "🔮 Oráculo VFP"],
         index=0
     )
     
@@ -136,7 +149,6 @@ if menu == "🏰 Visão Geral":
     st.markdown("Bem-vindo ao seu QG Financeiro, **Maycon**.")
     
     # 1. Cards Superiores (Resumo)
-    # Cálculo real baseado no Mock
     df = st.session_state.transactions
     receitas = df[df['Valor'] > 0]['Valor'].sum()
     despesas = abs(df[df['Valor'] < 0]['Valor'].sum())
@@ -150,7 +162,8 @@ if menu == "🏰 Visão Geral":
     with col3:
         st.metric("Despesas (Mês)", f"R$ {despesas:,.2f}", "-2%")
     with col4:
-        st.metric("Meta Castelo", "12%", "R$ 100k Alvo")
+        total_faturas = sum(c['fatura_atual'] for c in st.session_state.cards)
+        st.metric("Faturas Abertas", f"R$ {total_faturas:,.2f}", "Vence em 5 dias")
 
     st.markdown("---")
 
@@ -159,7 +172,6 @@ if menu == "🏰 Visão Geral":
     
     with c1:
         st.subheader("Fluxo de Caixa (Evolução)")
-        # Simulação de dados mensais
         df_fluxo = pd.DataFrame({
             "Mês": ["Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev"],
             "Receitas": [15000, 16000, 15500, 18000, 22000, 18200, receitas],
@@ -177,7 +189,6 @@ if menu == "🏰 Visão Geral":
         
     with c2:
         st.subheader("Por Categoria")
-        # Agrupamento real do Mock
         df_despesas = df[df['Valor'] < 0].copy()
         df_despesas['Valor'] = df_despesas['Valor'].abs()
         df_pizza = df_despesas.groupby("Categoria")['Valor'].sum().reset_index()
@@ -190,19 +201,16 @@ if menu == "🏰 Visão Geral":
 elif menu == "💳 Lançamentos":
     st.title("Extrato Inteligente")
     
-    # Filtros
     c_filter1, c_filter2, c_filter3 = st.columns(3)
     with c_filter1:
         st.date_input("Período", datetime.today())
     with c_filter2:
-        conta_sel = st.selectbox("Conta", ["Todas", "Nubank", "Itaú"])
+        st.selectbox("Conta", ["Todas", "Nubank", "Itaú"])
     with c_filter3:
-        cat_sel = st.selectbox("Categoria", ["Todas"] + list(st.session_state.budgets.keys()))
+        st.selectbox("Categoria", ["Todas"] + list(st.session_state.budgets.keys()))
     
-    # Tabela
     df_show = st.session_state.transactions
     
-    # Estilizando
     def color_val(val):
         color = '#e74c3c' if val < 0 else '#2ecc71'
         return f'color: {color}; font-weight: bold;'
@@ -217,7 +225,6 @@ elif menu == "💳 Lançamentos":
         }
     )
     
-    # Botão Flutuante (Simulado)
     with st.expander("➕ Novo Lançamento Manual", expanded=False):
         with st.form("new_transaction"):
             c1, c2 = st.columns(2)
@@ -241,10 +248,64 @@ elif menu == "💳 Lançamentos":
                 st.toast("Transação salva com sucesso!", icon="✅")
                 st.rerun()
 
-# --- MÓDULO 3: PLANEJAMENTO (METAS) ---
+# --- MÓDULO 3: CARTÕES DE CRÉDITO ---
+elif menu == "💳 Cartões de Crédito":
+    st.title("Gestão de Cartões")
+    
+    for card in st.session_state.cards:
+        with st.container():
+            st.markdown(f"### {card['nome']}")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Fatura Atual", f"R$ {card['fatura_atual']:,.2f}")
+            with c2:
+                disponivel = card['limite'] - card['fatura_atual']
+                st.metric("Disponível", f"R$ {disponivel:,.2f}")
+            with c3:
+                st.metric("Vencimento", f"Dia {card['vencimento']}")
+            
+            # Barra de Limite
+            pct_uso = card['fatura_atual'] / card['limite']
+            st.progress(pct_uso, text=f"Uso do Limite: {pct_uso*100:.1f}%")
+            st.markdown("---")
+
+# --- MÓDULO 4: OBJETIVOS (RESERVAS) ---
+elif menu == "🎯 Objetivos (Reservas)":
+    st.title("Metas & Sonhos")
+    st.markdown("Acompanhe a evolução do seu patrimônio e conquistas.")
+    
+    col_goals, col_add = st.columns([2, 1])
+    
+    with col_goals:
+        for goal in st.session_state.goals:
+            pct = min(goal['atual'] / goal['alvo'], 1.0)
+            st.subheader(f"{goal['nome']}")
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.progress(pct, text=f"{pct*100:.1f}% Concluído")
+            with c2:
+                st.write(f"R$ {goal['atual']:,.2f} / R$ {goal['alvo']:,.2f}")
+            st.write("")
+            
+    with col_add:
+        with st.form("new_goal"):
+            st.subheader("Novo Objetivo")
+            nome = st.text_input("Nome da Meta", placeholder="Ex: Casa Própria")
+            alvo = st.number_input("Valor Alvo (R$)", min_value=100.0)
+            inicial = st.number_input("Depósito Inicial (R$)", min_value=0.0)
+            if st.form_submit_button("Criar Meta"):
+                st.session_state.goals.append({
+                    "nome": nome,
+                    "alvo": alvo,
+                    "atual": inicial,
+                    "cor": "#D4AF37"
+                })
+                st.toast("Objetivo criado!", icon="🚀")
+                st.rerun()
+
+# --- MÓDULO 5: PLANEJAMENTO (ORÇAMENTO) ---
 elif menu == "📊 Planejamento (Metas)":
-    st.title("Metas de Gastos")
-    st.markdown("Defina limites para suas categorias e acompanhe o progresso.")
+    st.title("Teto de Gastos (Orçamento)")
     
     df = st.session_state.transactions
     df_gastos = df[df['Valor'] < 0].copy()
@@ -259,29 +320,18 @@ elif menu == "📊 Planejamento (Metas)":
             gasto_atual = gastos_cat.get(cat, 0.0)
             pct = min(gasto_atual / limite, 1.0)
             
-            c_meta1, c_meta2 = st.columns([3, 1])
-            with c_meta1:
-                st.write(f"**{cat}** (R$ {gasto_atual:.2f} / R$ {limite:.2f})")
-                color_bar = "red" if pct > 0.9 else "green"
-                st.progress(pct, text=f"{pct*100:.0f}%")
-            with c_meta2:
-                diff = limite - gasto_atual
-                if diff < 0:
-                    st.error(f"Estourou R$ {abs(diff):.2f}")
-                else:
-                    st.success(f"Resta R$ {diff:.2f}")
-            st.write("")
+            st.write(f"**{cat}**")
+            st.progress(pct, text=f"{gasto_atual:.2f} de {limite:.2f} ({pct*100:.0f}%)")
             
     with col2:
-        st.subheader("Definir Metas")
-        cat_edit = st.selectbox("Editar Categoria", list(st.session_state.budgets.keys()))
-        new_limit = st.number_input(f"Novo limite para {cat_edit}", value=float(st.session_state.budgets[cat_edit]))
-        if st.button("Atualizar Meta"):
+        st.subheader("Ajustar Limites")
+        cat_edit = st.selectbox("Categoria", list(st.session_state.budgets.keys()))
+        new_limit = st.number_input(f"Limite para {cat_edit}", value=float(st.session_state.budgets[cat_edit]))
+        if st.button("Salvar Meta"):
             st.session_state.budgets[cat_edit] = new_limit
-            st.toast("Meta atualizada!", icon="🎯")
             st.rerun()
 
-# --- MÓDULO 4: ORÁCULO VFP ---
+# --- MÓDULO 6: ORÁCULO VFP ---
 elif menu == "🔮 Oráculo VFP":
     st.title("Oráculo VFP 2.0 (IA)")
     st.markdown("O **Guardião do Castelo** usa Inteligência Artificial para analisar suas decisões.")
@@ -313,12 +363,17 @@ elif menu == "🔮 Oráculo VFP":
                     4. Veredito: APROVADO, CUIDADO ou REPROVADO.
                     """
                     
-                    output = replicate.run(
-                        "meta/llama-3-8b-instruct",
-                        input={"prompt": prompt, "max_tokens": 150}
-                    )
+                    if replicate_api:
+                        output = replicate.run(
+                            "meta/llama-3-8b-instruct",
+                            input={"prompt": prompt, "max_tokens": 150}
+                        )
+                        resultado_ia = "".join(output)
+                    else:
+                        resultado_ia = "⚠️ **IA Offline:** Adicione a chave API na sidebar para ver a opinião do Guardião."
+                    
                     st.markdown("### 📜 Veredito")
-                    st.write("".join(output))
+                    st.write(resultado_ia)
                     st.markdown("---")
                     
                     if impacto > 30:
@@ -332,16 +387,3 @@ elif menu == "🔮 Oráculo VFP":
     with col2:
         st.subheader("Princípios")
         st.info("💡 **Dica:** Antes de comprar, pergunte: Eu preciso? Eu posso pagar à vista? Isso me aproxima do meu propósito?")
-
-# --- MÓDULO 5: PLANOS ---
-elif menu == "💎 Planos":
-    st.title("Assinatura Castelo Forte")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.success("✅ **Plano Atual: App MVP (R$ 79,90)**")
-        st.write("- Acesso total ao Oráculo")
-        st.write("- Gestão de Metas")
-    with c2:
-        st.info("🚀 **Upgrade: Standard (R$ 497,00)**")
-        st.write("- Consultoria Humana")
-        st.button("Fazer Upgrade")
